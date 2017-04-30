@@ -20,7 +20,7 @@ Real VerletStep::calcMolecularEnergyContribution(int currMol, int startMol) {
         cudaMemcpyDeviceToHost );
         return energy;
     } else {    // on CPU
-        VerletCalcs::calcMolecularEnergyContribution<int>()(currMol, startMol,
+        VerletCalcs::CalcMolecularEnergyContribution<int>()(currMol, startMol,
                                 GPUCopy::simBoxCPU(), (int *) &this->h_verletList[0],
                                 this->h_verletList.size());
         return GPUCopy::simBoxCPU()->energy;
@@ -31,13 +31,13 @@ void VerletStep::checkOutsideSkinLayer(int molIdx) {
     // Set SimBox->updateVerlet to TRUE/FALSE indicating if the verlet list needs to be recreated
     if(GPUCopy::onGpu()) {
         bool update;
-        VerletCalcs::updateVerlet_Kernel<<<1,1>>>( molIdx, (Real *) thrust::raw_pointer_cast(&this->d_verletAtomCoords[0]), GPUCopy::simBoxGPU() );
+        VerletCalcs::updateVerlet_Kernel<<<BLOCKS,THREADS>>>( molIdx, (Real *) thrust::raw_pointer_cast(&this->d_verletAtomCoords[0]), GPUCopy::simBoxGPU() );
         cudaDeviceSynchronize();
         cudaMemcpy(&update, &(GPUCopy::simBoxGPU()->updateVerlet), sizeof(bool), cudaMemcpyDeviceToHost);
 
         if( update ) {
             VerletStep::freeMemory();
-            VerletCalcs::NewVerletList_Kernel<<<1,1>>>( (int *) thrust::raw_pointer_cast(&this->d_verletList[0]),            // d_verletList
+            VerletCalcs::NewVerletList_Kernel<<<BLOCKS,THREADS>>>( (int *) thrust::raw_pointer_cast(&this->d_verletList[0]),            // d_verletList
                                        (Real *) thrust::raw_pointer_cast(&this->d_verletAtomCoords[0]),     // d_verletAtomCoords
                                        this->d_verletList.size(), this->d_verletAtomCoords.size(),
                                        GPUCopy::simBoxGPU());
@@ -50,7 +50,6 @@ void VerletStep::checkOutsideSkinLayer(int molIdx) {
             VerletCalcs::NewVerletList<int>()( (int *) &this->h_verletList[0], (Real* ) &this->h_verletAtomCoords[0],
                                 this->h_verletList.size(), this->h_verletAtomCoords.size(),
                                 GPUCopy::simBoxCPU() );
-
         }
     } // else
 } // // checkOutsideSkinLayer
@@ -64,7 +63,7 @@ Real VerletStep::calcSystemEnergy(Real &subLJ, Real &subCharge, int numMolecules
         this->d_verletList.resize(this->VERLET_SIZE);
         this->d_verletAtomCoords.resize(this->VACOORDS_SIZE);
 
-        VerletCalcs::NewVerletList_Kernel<<<1,1>>>( (int *) thrust::raw_pointer_cast(&this->d_verletList[0]), (Real* ) thrust::raw_pointer_cast(&this->d_verletAtomCoords[0]),
+        VerletCalcs::NewVerletList_Kernel<<<BLOCKS,THREADS>>>( (int *) thrust::raw_pointer_cast(&this->d_verletList[0]), (Real* ) thrust::raw_pointer_cast(&this->d_verletAtomCoords[0]),
                                     this->d_verletList.size(), this->d_verletAtomCoords.size(),
                                     GPUCopy::simBoxGPU() );
     } else {    // on CPU
@@ -95,7 +94,7 @@ VerletStep::~VerletStep() {
 // ----- VerletCalcs Definitions -----
 
 template <typename T>
-void VerletCalcs::calcMolecularEnergyContribution<T>::operator()(int currMol, int startMol, 
+void VerletCalcs::CalcMolecularEnergyContribution<T>::operator()(int currMol, int startMol, 
                                                     SimBox* sb, int* verletList, int verletListLength) const{
     Real total = 0.0;
 
@@ -143,7 +142,7 @@ void VerletCalcs::calcMolecularEnergyContribution<T>::operator()(int currMol, in
 
 __global__
 void VerletCalcs::energyContribution_Kernel(int currMol, int startMol, SimBox* sb, int* verletList, int verletListLength) {
-    VerletCalcs::calcMolecularEnergyContribution<int>()(currMol, startMol, sb, verletList, verletListLength);
+    VerletCalcs::CalcMolecularEnergyContribution<int>()(currMol, startMol, sb, verletList, verletListLength);
 } // energyContribution_Kernel
 
 __host__ __device__

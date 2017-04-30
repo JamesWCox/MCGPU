@@ -15,7 +15,6 @@
 
 class VerletStep: public SimulationStep {
     private:
-        int NUM_MOLS;
         int VERLET_SIZE;
         int VACOORDS_SIZE;
         thrust::host_vector<int> h_verletList;
@@ -33,8 +32,7 @@ class VerletStep: public SimulationStep {
                                     d_verletList(0),
                                     d_verletAtomCoords(0) {
 
-            NUM_MOLS = box->numMolecules;
-            VERLET_SIZE = NUM_MOLS * NUM_MOLS;
+            VERLET_SIZE = box->numMolecules * box->numMolecules;
             VACOORDS_SIZE = NUM_DIMENSIONS * box->numAtoms;
         }
 
@@ -75,21 +73,13 @@ namespace VerletCalcs {
      * @return The total energy of the box (discounts initial lj / charge energy)
      */
     template <typename T>
-    struct calcMolecularEnergyContribution {
+    struct CalcMolecularEnergyContribution {
         __host__ __device__
         void operator()(int currMol, int startMol, SimBox* sb, int* verletList, int verletListLength) const;
     };
 
     __global__
     void energyContribution_Kernel(int currMol, int startMol, SimBox* sb, int* verletList, int verletListLength);
-
-
-    /*
-     * @param verletList
-     * @param verletAtomCoords
-     * @param verletListLength
-     * @param sb
-     */
 
     /**
      * Checks if the verlet list needs to be updated to account for 
